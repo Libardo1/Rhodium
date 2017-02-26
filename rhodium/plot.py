@@ -93,7 +93,7 @@ def scatter3d(model, data,
            pick_handler = None,
            **kwargs):
     
-    df = data.as_dataframe(_combine_keys(model.responses.keys(), x, y, z, c, s))
+    df = data.as_dataframe()
     
     if "axes.facecolor" in mpl.rcParams:
         orig_facecolor = mpl.rcParams["axes.facecolor"]
@@ -251,8 +251,10 @@ def scatter2d(model, data,
            show_legend = False,
            interactive = False,
            brush = None,
+           is_class = False,
+           colors = None,
            **kwargs):
-    df = data.as_dataframe() #_combine_keys(model.responses.keys(), x, y, c, s))
+    df = data.as_dataframe()
     fig = plt.figure(facecolor='white')
     ax = plt.gca()
     
@@ -319,8 +321,23 @@ def scatter2d(model, data,
         s_max = max(s)
         s = (s_range[1]-s_range[0]) * ((s-s_min) / (s_max-s_min)) + s_range[0]
         
-    if "cmap" not in kwargs:
-        kwargs["cmap"] = RhodiumConfig.default_cmap
+
+    if is_class:
+        if isinstance(colors, dict):
+            cmap = colors
+        else:
+            from pandas.tools.plotting import _get_standard_colors
+            classes = c.drop_duplicates()
+            color_values = _get_standard_colors(num_colors=len(classes),
+                                                colormap=kwargs["cmap"] if "cmap" in kwargs else None,
+                                                color_type='random',
+                                                color=colors)
+            cmap = dict(zip(classes, color_values))
+        c = [cmap[c_i] for c_i in c]
+        show_colorbar = False
+    elif "cmap" not in kwargs:
+        kwargs["cmap"] = RhodiumConfig.default_cmap  
+    
 
     handle = plt.scatter(x = x,
                          y = y,
@@ -676,18 +693,18 @@ def animate3d(prefix, dir="images/", steps=36, transform=(10, 0, 0), **kwargs):
     file_path_name = os.path.join(dir, prefix + '.gif')
     writeGif(file_path_name, images, **kwargs)
     
-def parallel_coordinates(model, data, c=None, cols=None, ax=None, color=None,
+def parallel_coordinates(model, data, c=None, cols=None, ax=None, colors=None,
                      use_columns=False, xticks=None, colormap=None,
                      target="top", brush=None, zorder=None, **kwds):
     if "axes.facecolor" in mpl.rcParams:
         orig_facecolor = mpl.rcParams["axes.facecolor"]
         mpl.rcParams["axes.facecolor"] = "white"
     
-    df = data.as_dataframe(_combine_keys(model.responses.keys(), c), exclude_dtypes=["object"])
+    df = data.as_dataframe(_combine_keys(model.responses.keys(), cols, c)) #, exclude_dtypes=["object"])
         
     if brush is not None:
         brush_set = BrushSet(brush)
-        assignment = apply_brush(brush_set, df)
+        assignment = apply_brush(brush_set, data)
         color_map = brush_color_map(brush_set, assignment)
         class_col = pd.DataFrame({"class" : assignment})["class"]
         is_class = True
@@ -701,6 +718,9 @@ def parallel_coordinates(model, data, c=None, cols=None, ax=None, color=None,
     
         if is_class:
             df = df.drop(c, axis=1)
+            
+            if c in cols:
+                cols.remove(c)
         else:
             class_min = class_col.min()
             class_max = class_col.max()
@@ -740,19 +760,25 @@ def parallel_coordinates(model, data, c=None, cols=None, ax=None, color=None,
     else:
         x = range(ncols)
 
-    fig = plt.figure()
-    ax = plt.gca()
+    if ax is None:
+        fig = plt.figure()
+        ax = plt.gca()
+    else:
+        fig = ax.get_figure()
 
     cmap = plt.get_cmap(colormap)
     
     if is_class:
         if color_map is None:
-            from pandas.tools.plotting import _get_standard_colors
-            classes = class_col.drop_duplicates()
-            color_values = _get_standard_colors(num_colors=len(classes),
-                                            colormap=colormap, color_type='random',
-                                            color=color)
-            cmap = dict(zip(classes, color_values))
+            if isinstance(colors, dict):
+                cmap = colors
+            else:
+                from pandas.tools.plotting import _get_standard_colors
+                classes = class_col.drop_duplicates()
+                color_values = _get_standard_colors(num_colors=len(classes),
+                                                colormap=colormap, color_type='random',
+                                                color=colors)
+                cmap = dict(zip(classes, color_values))
         else:
             cmap = color_map
             
@@ -811,8 +837,8 @@ def parallel_coordinates(model, data, c=None, cols=None, ax=None, color=None,
             
         ax.text(i, -0.001, format % value, ha="center", va="top", fontsize=10)
 
-    plt.yticks([])
-    plt.xticks(x, rotation=0)
+    ax.set_yticks([])
+    ax.set_xticks(x)
     ax.set_xticklabels(df.columns, {"weight" : "bold", "size" : 12})
     ax.set_xlim(x[0]-0.1, x[-1]+0.1)
     ax.tick_params(direction="out", pad=10)
