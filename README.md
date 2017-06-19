@@ -1,104 +1,106 @@
+<img align="left" src="images/logo.png" />
+
 # Rhodium #
 
-Rhodium is a Python library for robust decision making and exploratory
-modeling.  We are currently actively developing Rhodium, along with its sister
-libraries [Platypus](https://github.com/Project-Platypus/Platypus) and
-[PRIM](https://github.com/Project-Platypus/PRIM).  See our
-[IPython Notebook](https://gist.github.com/dhadka/a8d7095c98130d8f73bc)
-for a demonstration of the current capabilities.
+Rhodium is an open source Python library for robust decision making (RDM) and multiobjective robust decision
+making (MORDM), and exploratory modelling (EM).  Rhodium is still under active development, but it is ready for use.
 
-## Installation Instructions ##
+#### Resources
 
-### Prerequisite Software ###
+* [Demo IPython Notebook](https://gist.github.com/dhadka/a8d7095c98130d8f73bc)
+* [Installation Instructions](INSTALL.md)
+* [Examples](https://github.com/Project-Platypus/Rhodium/tree/master/examples)
 
-Please install all software listed below.  You should allow all three programs to update your PATH environment variable.
+#### What is Robust Decision Making?
 
-  * [Python 2.7 or 3.5](https://www.continuum.io/downloads) (we strongly recommend using Anaconda Python, especially on Windows)
-  * [Git](https://git-scm.com/downloads)
-  * [GraphViz](http://www.graphviz.org/Download.php) (for generating CART's tree views)
+Robust Decision Making (RDM) is an analytic framework developed by Robert Lempert and his
+collaborators at RAND Corporation that helps identify potential robust strategies for a
+particular problem, characterize the vulnerabilities of such strategies, and evaluate
+trade-offs among them [2].  Multiobjective Robust Decision Making (MORDM)
+is an extension of RDM to account for problems with multiple competing performance objectives,
+enabling the exploration of performance tradeoffs with respect to robustness
+[3, 4].
 
-Attention Mac users: See the troubleshooting section for information on installing GraphViz.
+#### What is Rhodium?
 
-### Setting up Rhodium ###
+Rhodium is an open source Python library providing methods for RDM and MORDM.  It follows a
+declarative design, where you tell Rhodium the actions or analyses you wish to perform and
+it determines the necessary calculations.  Rhodium can interface with models written in
+a variety of languages, including Python, C and Fortran, R, and Excel.  One begins by
+creating a Rhodium model:
 
-  1. Clone the Git repositories
+```python
 
-    * In the command prompt, create a folder where the code repositories will be stored
-    * Run the following commands
-    * git clone https://github.com/Project-Platypus/PRIM.git
-    * git clone https://github.com/Project-Platypus/Platypus.git
-    * git clone https://github.com/Project-Platypus/Rhodium.git
+from rhodium import *
 
-  2. Build the Git repositories (which will also install all Python dependencies)
-
-    * In a command prompt window, navigate to the PRIM folder
-    * Run: python setup.py develop
-    * Repeat for Platypus and Rhodium (in order)
-
-  3. Run Examples
-
-    * E.g., navigate to PRIM folder and run: python example.py
-
-
-### Running IPython Example ###
-
-  1. In the command prompt, navigate to the Rhodium folder
-
-  2. Run: ipython notebook
-
-  3. Open Rhodium.ipynb and evaluate the cells
+def lake_problem(pollution_limit,
+         b = 0.42,        # decay rate for P in lake (0.42 = irreversible)
+         q = 2.0,         # recycling exponent
+         mean = 0.02,     # mean of natural inflows
+         stdev = 0.001,   # standard deviation of natural inflows
+         alpha = 0.4,     # utility from pollution
+         delta = 0.98,    # future utility discount rate
+         nsamples = 100): # monte carlo sampling of natural inflows
+    # add body of function
+    return (max_P, utility, intertia, reliability)
 
 
-### Setting up a Development Environment in Eclipse ###
+model = Model(lake_problem)
 
-  1. Install the latest version of Java (http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
+model.parameters = [Parameter("pollution_limit"),
+                    Parameter("b"),
+                    Parameter("q"),
+                    Parameter("mean"),
+                    Parameter("stdev"),
+                    Parameter("delta")]
 
-  2. Download the latest version of the Eclipse IDE for Java Developers (https://www.eclipse.org/downloads/eclipse-packages/)
+model.responses = [Response("max_P", Response.MINIMIZE),
+                   Response("utility", Response.MAXIMIZE),
+                   Response("inertia", Response.MAXIMIZE),
+                   Response("reliability", Response.MAXIMIZE)]
 
-  3. Run Eclipse
+model.constraints = [Constraint("reliability >= 0.95")]
 
-  4. Install PyDev
+model.levers = [RealLever("pollution_limit", 0.0, 0.1, length=100)]
 
-    * Open Help > Eclipse Marketplace
-    * Search for PyDev
-    * Click Install and follow the instructions to complete the installation
+model.uncertainties = [UniformUncertainty("b", 0.1, 0.45),
+                       UniformUncertainty("q", 2.0, 4.5),
+                       UniformUncertainty("mean", 0.01, 0.05),
+                       UniformUncertainty("stdev", 0.001, 0.005),
+                       UniformUncertainty("delta", 0.93, 0.99)]
+```
 
-  5. Configure PyDev
+A Rhodium model consists of 6 parts:
 
-    * Open Window > Preferences
-    * Selected PyDev > Interpreters > Python Interpreters
-    * Click New
-    * Click Browse, go to the Python/Anaconda installation folder, and select python.exe
-    * Click Ok/Next until you return to the Preferences window, click Ok to close the Preferences window
+1. The underlying model (in this case, the Python function `lake_problem`).
+2. `model.parameters` - the parameters of interest.
+3. `model.responses` - the model responses or outputs.
+4. `model.constraints` - any hard constraints that must be satisfied.
 
-  6. Create PyDev projects for the Git repositories
+5. `model.levers` - parameters that we have direct control over.
+6. `model.uncertainties` - parameters that represent exogeneous uncertainties.
 
-    * Within Eclipse, select File > New > Other
-    * Select PyDev > PyDev Project
-    * Uncheck "Use Default"
-    * Enter the project name (e.g., PRIM)
-    * Click Browse and select one of the Git folders (e.g., PRIM)
-    * Change Grammar Version to 3.0-3.5
-    * Click Finish
-    * If it asks you to change to the PyDev perspective, click Yes
-    * Repeat this process for the other repositories
+Once the Rhodium model is defined, you can then perform any analysis.  For example,
+if we want to optimize the model and display the Pareto front:
 
-  7. Test
+```python
 
-    * Within Eclipse, run some of the examples
-    * E.g., Find PRIM > example.py.  Right-click and select Run As > Python Run.
+output = optimize(model, "NSGAII", 10000)
+scatter3d(model, output)
+plt.show()
+```
 
-### Troubleshooting ###
+Check out the [examples](https://github.com/Project-Platypus/Rhodium/tree/master/examples) folder
+to see Rhodium in action!
 
-  1. MacOS users may have trouble installing GraphVis on new versions of the operating system.  If using Anaconda, you can run the following command to install GraphViz:
-  
-       ```
-       conda install -c rmg graphviz=2.38.0
-       ```
-     
-  2. Older versions of scikit-learn do not support colors in graphs (e.g., CART trees).  To enable colors, upgrade the scikit-learn version >= 0.17.  For example:
-  
-       ```
-       conda update conda
-       conda install scikit-learn=0.18.1
-       ```
+## References
+
+1. Rhodium logo by Tyler Glaude, Creative Commons License, https://thenounproject.com/term/knight/30912/
+2. Lempert, R. J., D. G. Groves, S. W. Popper, and S. C. Bankes (2006).  A General, Analytic
+   Method for Generating Robust Strategies and Narrative Scenarios.  Management Science, 52(4):514-528.
+3. Kasprzyk, J. R., S. Nataraj, P. M. Reed, and R. J. Lempert (2013).  Many objective robust
+   decision making for complex environmental systems undergoing change. Environmental
+   Modelling & Software, 42:55-71.
+4. Hadka, D., Herman, J., Reed, P.M., Keller, K. An Open Source Framework for Many-Objective
+   Robust Decision Making. Environmental Modelling & Software, 74:114-129, 2015.
+   DOI:10.1016/j.envsoft.2015.07.014. [(View Online)](http://www.sciencedirect.com/science/article/pii/S1364815215300190)

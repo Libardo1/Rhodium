@@ -71,9 +71,9 @@ class Response(NamedObject):
     INFO = 2
     IGNORE = 0
     
-    def __init__(self, name, type = INFO, **kwargs):
+    def __init__(self, name, dir = INFO, **kwargs):
         super(Response, self).__init__(name)
-        self.type = type
+        self.dir = dir
         
         for k, v in six.iteritems(kwargs):
             setattr(self, k, v)
@@ -406,10 +406,10 @@ class NamedObjectMap(object):
                 
             for item in value:
                 self._data[item.name] = item
-        elif isinstance(value, Parameter):
+        elif isinstance(value, self.type):
             self._data[value.name] = value
         else:
-            raise TypeError("can only add " + str(type) + " objects")
+            raise TypeError("can only add " + str(self.type) + " objects")
             
     def __add__(self, value):
         self.extend(value)

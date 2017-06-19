@@ -1,17 +1,11 @@
-import os
 import math
-import json
 import numpy as np
-import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from scipy.optimize import brentq as root
 from rhodium import *
-from rhodium.config import RhodiumConfig
-from platypus import MapEvaluator
 
-RhodiumConfig.default_evaluator = MapEvaluator()
-
+# Construct the lake problem
 def lake_problem(pollution_limit,
          b = 0.42,        # decay rate for P in lake (0.42 = irreversible)
          q = 2.0,         # recycling exponent
@@ -19,7 +13,7 @@ def lake_problem(pollution_limit,
          stdev = 0.001,   # standard deviation of natural inflows
          alpha = 0.4,     # utility from pollution
          delta = 0.98,    # future utility discount rate
-         nsamples = 100): # monte carlo sampling of natural inflows)
+         nsamples = 100): # monte carlo sampling of natural inflows
     Pcrit = root(lambda x: x**q/(1+x**q) - b*x, 0.01, 1.5)
     nvars = len(pollution_limit)
     X = np.zeros((nvars,))
@@ -43,13 +37,13 @@ def lake_problem(pollution_limit,
       
     max_P = np.max(average_daily_P)
     utility = np.sum(alpha*decisions*np.power(delta,np.arange(nvars)))
-    intertia = np.sum(np.diff(decisions) > -0.02)/float(nvars-1)
+    inertia = np.sum(np.diff(decisions) > -0.02)/float(nvars-1)
     
-    return (max_P, utility, intertia, reliability)
+    return (max_P, utility, inertia, reliability)
 
 model = Model(lake_problem)
 
-# define all parameters to the model that we will be studying
+# Define all parameters to the model that we will be studying
 model.parameters = [Parameter("pollution_limit"),
                     Parameter("b"),
                     Parameter("q"),
@@ -57,19 +51,19 @@ model.parameters = [Parameter("pollution_limit"),
                     Parameter("stdev"),
                     Parameter("delta")]
 
-# define the model outputs
+# Define the model outputs
 model.responses = [Response("max_P", Response.MINIMIZE),
                    Response("utility", Response.MAXIMIZE),
                    Response("inertia", Response.MAXIMIZE),
                    Response("reliability", Response.MAXIMIZE)]
 
-# define any constraints (can reference any parameter or response by name)
+# Define any constraints (can reference any parameter or response by name)
 #model.constraints = [Constraint("reliability >= 0.95")]
 
-# some parameters are levers that we control via our policy
+# Some parameters are levers that we control via our policy
 model.levers = [RealLever("pollution_limit", 0.0, 0.1, length=100)]
 
-# some parameters are exogeneous uncertainties, and we want to better
+# Some parameters are exogeneous uncertainties, and we want to better
 # understand how these uncertainties impact our model and decision making
 # process
 model.uncertainties = [UniformUncertainty("b", 0.1, 0.45),
@@ -78,15 +72,12 @@ model.uncertainties = [UniformUncertainty("b", 0.1, 0.45),
                        UniformUncertainty("stdev", 0.001, 0.005),
                        UniformUncertainty("delta", 0.93, 0.99)]
 
-if os.path.exists("data.txt"):
-    with open("data.txt", "r") as f:
-        output = json.load(f)
-    output = DataSet(output)
-else:
-    output = optimize(model, "NSGAII", 100)
- 
-    with open("data.txt", "w") as f:
-        json.dump(output, f)
+# Prepare the cache for storing intermediate results
+setup_cache(file="example.cache")
+
+# Optimize the model or get cached results if they exist.  Note that the
+# call to optimize is wrapped in a lambda function to enable lazy evaluation.
+output = cache("output", lambda: optimize(model, "NSGAII", 10000))
    
 # ----------------------------------------------------------------------------
 # Plotting
@@ -166,18 +157,18 @@ policy = {"pollution_limit" : [0.02]*100}
 # Or select one of our optimization results
 policy = output[3]
 
-# construct a specific policy and evaluate it against 1000 states-of-the-world
+# Construct a specific policy and evaluate it against 1000 states-of-the-world
 SOWs = sample_lhs(model, 100)
 results = evaluate(model, update(SOWs, policy))
 metric = ["Reliable" if v["reliability"] > 0.9 else "Unreliable" for v in results]
  
-# use PRIM to identify the key uncertainties if we require reliability > 0.9
+# Use PRIM to identify the key uncertainties if we require reliability > 0.9
 p = Prim(results, metric, include=model.uncertainties.keys(), coi="Reliable")
 box = p.find_box()
 box.show_details()
 plt.show()
 
-# use CART to identify the key uncertainties
+# Use CART to identify the key uncertainties
 c = Cart(results, metric, include=model.uncertainties.keys())
 c.print_tree(coi="Reliable")
 c.show_tree()
